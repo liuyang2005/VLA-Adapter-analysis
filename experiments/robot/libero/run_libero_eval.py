@@ -124,13 +124,9 @@ class GenerateConfig:
     seed: int = 7                                    # Random Seed (for reproducibility)
 
     # fmt: on
-    save_version: str = "vla-adapter"                # version of
+    save_version: str = "vla-adapter"                # version of 
     use_pro_version: bool = True                     # encourage to use the pro models we released.
     phase: str = "Inference"
-
-    # Gating intervention (analysis, see experiments/analysis/gating_intervention.py)
-    gating_mode: str = "none"                        # none | zero_all_CR | zero_layer | full_layer
-    gating_layer: int = -1                           # layer index for zero_layer/full_layer (<0 = unset)
 
 
 
@@ -492,11 +488,9 @@ def eval_libero(cfg: GenerateConfig) -> float:
     # Initialize model and components
     model, action_head, proprio_projector, noisy_action_projector, processor = initialize_model(cfg)
 
-    # Gating intervention (analysis): modify C^R gates before evaluation
-    if cfg.gating_mode != "none":
-        from experiments.analysis.gating_intervention import apply_intervention
-        layer = None if cfg.gating_layer < 0 else cfg.gating_layer
-        apply_intervention(action_head, cfg.gating_mode, layer)
+    # for name, param in model.named_parameters():
+    #     if 'action_queries' in name: 
+    #         print(f"{name}: {param}")
 
     # Get expected image dimensions
     resize_size = get_image_resize_size(cfg)
