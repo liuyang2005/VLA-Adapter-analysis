@@ -30,6 +30,8 @@ from prismatic.models.action_heads import MLPResNetBlock_Pro, apply_rope
 
 # 全局收集器: layer_id -> [sum_tokens, sum_caq, sum_cr, count]
 _COLLECTOR = defaultdict(lambda: [0.0, 0.0, 0.0, 0])
+# 各层段长度: layer_id -> (T, K_a, K_t)
+_SEGLEN = {}
 
 
 def _make_patched_forward(orig_block, layer_id):
@@ -84,6 +86,9 @@ def _make_patched_forward(orig_block, layer_id):
             cr = w[..., T + K_a:].sum(dim=-1).mean().item()
             acc = _COLLECTOR[layer_id]
             acc[0] += tok; acc[1] += caq; acc[2] += cr; acc[3] += 1
+            # 记录各段 token 数(用于每-token归一化), 只记一次
+            if acc[3] == 1:
+                _SEGLEN[layer_id] = (T, K_a, K_t)
 
         v_list = [v_tokens, v_adapter, v_task]
         v_combined = torch.cat(v_list, dim=2)
@@ -135,12 +140,23 @@ def main():
     os.makedirs(os.path.dirname(share_out), exist_ok=True)
     with open(share_out, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["layer", "share_tokens", "share_CAQ", "share_CR", "n_calls"])
+        w.writerow([
+            "layer", "share_tokens", "share_CAQ", "share_CR", "n_calls",
+            "len_tokens", "len_CAQ", "len_CR",
+            "pertoken_tokens", "pertoken_CAQ", "pertoken_CR",
+        ])
         for li in sorted(_COLLECTOR):
             s_tok, s_caq, s_cr, n = _COLLECTOR[li]
             if n == 0:
                 continue
-            w.writerow([li, s_tok / n, s_caq / n, s_cr / n, n])
+            T, K_a, K_t = _SEGLEN.get(li, (0, 0, 0))
+            avg_tok, avg_caq, avg_cr = s_tok / n, s_caq / n, s_cr / n
+            # 每-token平均 = 该段总占比 / 该段token数
+            pt_tok = avg_tok / T if T else 0.0
+            pt_caq = avg_caq / K_a if K_a else 0.0
+            pt_cr = avg_cr / K_t if K_t else 0.0
+            w.writerow([li, avg_tok, avg_caq, avg_cr, n,
+                        T, K_a, K_t, pt_tok, pt_caq, pt_cr])
     print(f"[ATTN] saved attention shares to {share_out}", flush=True)
 
 
