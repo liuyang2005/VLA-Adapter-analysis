@@ -27,17 +27,19 @@ class L1RegressionActionHead(nn.Module):
         action_dim=7,
         num_task_tokens=512,
         use_pro_version=False,
+        gating_per_head=False,
     ):
         super().__init__()
         self.num_task_tokens = num_task_tokens
         self.action_dim = action_dim
         self.hidden_dim = hidden_dim
         self.model = MLPResNet(
-            num_blocks=24, 
-            input_dim=input_dim*ACTION_DIM, 
-            hidden_dim=hidden_dim, 
+            num_blocks=24,
+            input_dim=input_dim*ACTION_DIM,
+            hidden_dim=hidden_dim,
             output_dim=action_dim,
-            use_pro_version=use_pro_version
+            use_pro_version=use_pro_version,
+            gating_per_head=gating_per_head
             )
 
     def predict_action(
@@ -84,14 +86,15 @@ class L1RegressionActionHead(nn.Module):
 class MLPResNet(nn.Module):
     """MLP with residual connection blocks."""
     def __init__(
-            self, 
-            num_blocks, 
-            input_dim, 
-            hidden_dim, 
+            self,
+            num_blocks,
+            input_dim,
+            hidden_dim,
             output_dim,
-            use_pro_version=False
+            use_pro_version=False,
+            gating_per_head=False
             ):
-        
+
         super().__init__()
         self.layer_norm1 = nn.LayerNorm(input_dim)
         self.fc1 = nn.Linear(input_dim, hidden_dim)
@@ -100,7 +103,7 @@ class MLPResNet(nn.Module):
 
         for _ in range(num_blocks):
             if use_pro_version:
-                self.mlp_resnet_blocks.append(MLPResNetBlock_Pro(dim=hidden_dim))
+                self.mlp_resnet_blocks.append(MLPResNetBlock_Pro(dim=hidden_dim, gating_per_head=gating_per_head))
             else:
                 self.mlp_resnet_blocks.append(MLPResNetBlock(dim=hidden_dim))
                 
@@ -287,11 +290,12 @@ class MLPResNetBlock(nn.Module):
 class MLPResNetBlock_Pro(nn.Module):
     """One MLP ResNet block with separate projections for self, adapter, task + RoPE, now with FiLM modulation."""
 
-    def __init__(self, dim, num_heads=8):
+    def __init__(self, dim, num_heads=8, gating_per_head=False):
         super().__init__()
         self.dim = dim
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
+        self.gating_per_head = gating_per_head
 
         self.ffn = nn.Sequential(
             nn.LayerNorm(dim),
@@ -316,8 +320,11 @@ class MLPResNetBlock_Pro(nn.Module):
 
         self.o_proj = nn.Linear(dim, dim)
 
-        # gating
-        self.gating_factor = nn.Parameter(torch.zeros(1))
+        # gating: 标量(zeros(1), 官方默认) 或 向量(zeros(num_heads), per-head 门控)
+        if gating_per_head:
+            self.gating_factor = nn.Parameter(torch.zeros(num_heads))
+        else:
+            self.gating_factor = nn.Parameter(torch.zeros(1))
 
         # RoPE
         self.rope = RotaryPositionEmbedding(self.head_dim)
@@ -342,6 +349,9 @@ class MLPResNetBlock_Pro(nn.Module):
         """
         g = self.gating_factor
         ratio_g = torch.tanh(g)
+        # per-head 向量门控: reshape 成 (1, H, 1, 1) 以广播到 (B, H, T, K_t)
+        if self.gating_per_head:
+            ratio_g = ratio_g.view(1, self.num_heads, 1, 1)
 
         # concat h_a and p
         h_adapter = torch.cat((h_a, p),dim=1)

@@ -124,8 +124,9 @@ class GenerateConfig:
     seed: int = 7                                    # Random Seed (for reproducibility)
 
     # fmt: on
-    save_version: str = "vla-adapter"                # version of 
+    save_version: str = "vla-adapter"                # version of
     use_pro_version: bool = True                     # encourage to use the pro models we released.
+    gating_per_head: bool = False                    # Part D: per-head vector gating (must match training)
     phase: str = "Inference"
 
 

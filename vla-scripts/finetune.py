@@ -124,6 +124,7 @@ class FinetuneConfig:
 
     # revision version
     use_pro_version: bool = True                             # the version number
+    gating_per_head: bool = False                            # Part D: per-head vector gating for C^R (vs scalar)
     phase: str = "Training"
     # fmt: on
 
@@ -887,10 +888,11 @@ def finetune(cfg: FinetuneConfig) -> None:
         cfg,
         device_id,
         {
-            "input_dim": vla.module.llm_dim, 
-            "hidden_dim": vla.module.llm_dim, 
+            "input_dim": vla.module.llm_dim,
+            "hidden_dim": vla.module.llm_dim,
             "action_dim": ACTION_DIM,
             "use_pro_version": cfg.use_pro_version,
+            "gating_per_head": cfg.gating_per_head,
             },
         to_bf16=True,
         )

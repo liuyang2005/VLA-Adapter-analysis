@@ -508,10 +508,11 @@ def get_action_head(cfg: Any, llm_dim: int) -> Union[L1RegressionActionHead]:
     # Initialize appropriate action head based on configuration
     if cfg.use_l1_regression:
         action_head = L1RegressionActionHead(
-            input_dim=llm_dim, 
-            hidden_dim=llm_dim, 
+            input_dim=llm_dim,
+            hidden_dim=llm_dim,
             action_dim=ACTION_DIM,
             use_pro_version=cfg.use_pro_version,
+            gating_per_head=getattr(cfg, "gating_per_head", False),
         )
 
     else:
