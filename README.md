@@ -176,6 +176,10 @@ python -m experiments.analysis.read_gating --pretrained_checkpoint outputs/...PA
 python -m experiments.analysis.plot_partd_gating --scalar_csv out/gating_scalar.csv --perhead_csv out/gating_perhead.csv --out out/fig_D_gating_compare.png
 ```
 
+---
+
+官方README:
+
 
 <div align="center">
   <img src="figure/LOGO2.png" width="70%" style="vertical-align:-7px;" />
